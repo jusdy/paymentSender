@@ -2,13 +2,14 @@ import { useState } from "react";
 import {
   useSendTransaction,
   usePrepareSendTransaction,
-  useContractRead,
+  useContractReads,
   useContractWrite,
+  useBalance
 } from "wagmi";
 import useConnectWallet from "hooks/useWalletConnect";
 import { useAccount } from "wagmi";
 import { shortenAddress } from "utils";
-import { parseEther } from "viem";
+import { parseEther, formatEther } from "viem";
 import { contractAddress } from "constant";
 import PaymentSenderABI from "abi/paymentSender.json";
 
@@ -20,18 +21,41 @@ const Main = () => {
     to: contractAddress,
     value: parseEther(transferValue),
   });
-  const { data, isLoading, isSuccess, sendTransaction } = useSendTransaction(
+  const { sendTransaction } = useSendTransaction(
     sendConfig.config
   );
   const [formValues, setFormValues] = useState([{ amount: "", recipient: "" }]);
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
 
-  const senderContract = useContractRead({
+  const contractBalance = useBalance({
     address: contractAddress,
-    abi: PaymentSenderABI,
-    functionName: "owner",
+  })
+
+  const paymentSenderContract = {
+    address: contractAddress as `0x${string}`,
+    abi: PaymentSenderABI as any,
+  };
+
+  const senderContract = useContractReads({
+    contracts: [
+      {
+        ...paymentSenderContract,
+        functionName: "owner",
+      },
+      {
+        ...paymentSenderContract,
+        functionName: "reserveBalance",
+      },
+      {
+        ...paymentSenderContract,
+        functionName: "ethBalance",
+        args: [address as string]
+      },
+    ],
   });
+
+  console.log(senderContract)
 
   const handleChange = (key: number, e: any) => {
     setFormValues((prevFormValues) => {
@@ -96,6 +120,13 @@ const Main = () => {
           ? shortenAddress(address as `0x${string}`)
           : "Connect Wallet"}
       </button>
+
+      <div className="mt-10">
+        <p>Contract Balance: {contractBalance.data?.formatted} ETH</p>
+        <p>Reserve Balance: {formatEther(senderContract?.data?.[1]?.result as any)} ETH</p>
+        <p>Available Withdrawal Balance: {formatEther(senderContract?.data?.[2]?.result as any)} ETH</p>
+      </div>
+
       <div className="flex gap-10">
         <div className="mt-10">
           <input
@@ -124,25 +155,28 @@ const Main = () => {
             value={withdrawAddress}
             className="border border-black outline-none focus:outline-none px-2 h-10"
             onChange={(e) => {
-              setWithdrawAddress(e.target.value)
+              setWithdrawAddress(e.target.value);
             }}
-          /> <br/><br/>
-
+          />{" "}
+          <br />
+          <br />
           <input
             placeholder="Amount for withdraw"
             value={withdrawAmount}
             className="border border-black outline-none focus:outline-none px-2 h-10"
             onChange={(e) => {
-              setWithdrawAmount(e.target.value)
+              setWithdrawAmount(e.target.value);
             }}
           />
-
           <div className="mt-4">
             <button
-              className="text-white p-2 font-semibold rounded-lg bg-orange-700"
-              onClick={() => withdraw.write({
-                args: [parseEther(withdrawAmount), withdrawAddress]
-              })}
+              className={`text-white p-2 font-semibold rounded-lg bg-orange-700 ${formatEther(senderContract?.data?.[2].result as any) === "0" ? "cursor-not-allowed" : ""}`}
+              onClick={() =>
+                withdraw.write({
+                  args: [parseEther(withdrawAmount), withdrawAddress],
+                })
+              }
+              disabled={formatEther(senderContract?.data?.[2].result as any) === "0" ? true : false}
             >
               Withdraw & Split
             </button>
@@ -150,7 +184,7 @@ const Main = () => {
         </div>
       </div>
 
-      {senderContract.data === address && (
+      {senderContract.data?.[0].result === address && (
         <div className="mt-10">
           <button
             onClick={() =>
