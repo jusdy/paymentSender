@@ -3,6 +3,7 @@ import {
   useSendTransaction,
   usePrepareSendTransaction,
   useContractReads,
+  useContractRead,
   useContractWrite,
   useBalance
 } from "wagmi";
@@ -47,15 +48,15 @@ const Main = () => {
         ...paymentSenderContract,
         functionName: "reserveBalance",
       },
-      {
-        ...paymentSenderContract,
-        functionName: "ethBalance",
-        args: [address as string]
-      },
     ],
   });
 
-  console.log(senderContract)
+  const { data: ethBalance }: any = useContractRead({
+    address: contractAddress,
+    abi: PaymentSenderABI as any,
+    functionName: "ethBalance",
+    args: [address]
+  })
 
   const handleChange = (key: number, e: any) => {
     setFormValues((prevFormValues) => {
@@ -124,7 +125,9 @@ const Main = () => {
       <div className="mt-10">
         <p>Contract Balance: {contractBalance.data?.formatted} ETH</p>
         <p>Reserve Balance: {formatEther(senderContract?.data?.[1]?.result as any)} ETH</p>
-        <p>Available Withdrawal Balance: {formatEther(senderContract?.data?.[2]?.result as any)} ETH</p>
+        {senderContract.data?.[0].result === address &&
+          <p>Available Withdrawal Balance: {formatEther(ethBalance)} ETH</p>
+        }
       </div>
 
       <div className="flex gap-10">
@@ -170,13 +173,13 @@ const Main = () => {
           />
           <div className="mt-4">
             <button
-              className={`text-white p-2 font-semibold rounded-lg bg-orange-700 ${formatEther(senderContract?.data?.[2].result as any) === "0" ? "cursor-not-allowed" : ""}`}
+              className={`text-white p-2 font-semibold rounded-lg bg-orange-700 ${formatEther(ethBalance) === "0" ? "cursor-not-allowed" : ""}`}
               onClick={() =>
                 withdraw.write({
                   args: [parseEther(withdrawAmount), withdrawAddress],
                 })
               }
-              disabled={formatEther(senderContract?.data?.[2].result as any) === "0" ? true : false}
+              disabled={formatEther(ethBalance) === "0" ? true : false}
             >
               Withdraw & Split
             </button>
